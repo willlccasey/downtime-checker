@@ -293,11 +293,21 @@ def is_public(ip: ipaddress._BaseAddress) -> bool:
     )
 
 
-def answers_ping(host: str) -> bool:
+def ping_command(host: str) -> list[str]:
+    # Linux ping takes -4/-6 and -W in seconds. macOS ping has no family flag
+    # and -W is milliseconds. IPv6 on macOS is ping6.
+    wait = str(PING_WAIT * 1000 if sys.platform == "darwin" else PING_WAIT)
+    if sys.platform == "darwin":
+        binary = "ping6" if is_ipv6(host) else "ping"
+        return [binary, "-n", "-c", "1", "-W", wait, host]
     family = "-6" if is_ipv6(host) else "-4"
+    return ["ping", family, "-n", "-c", "1", "-W", wait, host]
+
+
+def answers_ping(host: str) -> bool:
     try:
         result = subprocess.run(
-            ["ping", family, "-n", "-c", "1", "-W", str(PING_WAIT), host],
+            ping_command(host),
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             timeout=PING_WAIT + 3,

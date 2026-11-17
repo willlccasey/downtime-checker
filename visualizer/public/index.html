@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DOWNTIME // LIVE GRID</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Orbitron:wght@500;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="noise"></div>
+  <div class="scanlines"></div>
+  <div class="vignette"></div>
+
+  <header class="hud-top">
+    <div class="brand">
+      <div class="pulse-dot" id="link-dot"></div>
+      <div>
+        <h1>DOWNTIME</h1>
+        <p class="tag">PUBLIC GRID INTEGRITY // NODE VISUALIZER</p>
+      </div>
+    </div>
+    <div class="meters">
+      <div class="meter"><span>CHECKED</span><strong id="stat-done">0</strong><em id="stat-total">/ 0</em></div>
+      <div class="meter up"><span>ONLINE</span><strong id="stat-up">0</strong></div>
+      <div class="meter down"><span>OFFLINE</span><strong id="stat-down">0</strong></div>
+      <div class="meter"><span>UPTIME</span><strong id="stat-pct">—</strong></div>
+      <div class="meter"><span>SCAN</span><strong id="stat-ms">IDLE</strong></div>
+    </div>
+    <div class="clock" id="clock">00:00:00</div>
+  </header>
+
+  <aside class="rail">
+    <div class="rail-head">
+      <span>MISSIONS</span>
+      <button type="button" id="btn-stop" hidden>ABORT</button>
+    </div>
+    <nav id="searches" class="searches"></nav>
+    <label class="country-pick">
+      <span>COUNTRY TARGET</span>
+      <select id="country"></select>
+      <button type="button" id="btn-country">LOCK &amp; SCAN</button>
+    </label>
+  </aside>
+
+  <main class="stage">
+    <canvas id="globe"></canvas>
+    <div class="crosshair"></div>
+    <div class="stage-frame tl"></div>
+    <div class="stage-frame tr"></div>
+    <div class="stage-frame bl"></div>
+    <div class="stage-frame br"></div>
+    <div class="stage-meta">
+      <div id="heading">AWAITING TASKING</div>
+      <div id="hint">DRAG ORBIT · SCROLL ZOOM · CLICK A NODE</div>
+    </div>
+    <div class="selected" id="selected" hidden></div>
+    <div class="progress-wrap">
+      <div class="progress" id="progress"></div>
+    </div>
+  </main>
+
+  <aside class="feed-col">
+    <div class="rail-head">
+      <span>LIVE RETURNS</span>
+      <div class="toggles">
+        <button type="button" class="chip on" data-filter="all">ALL</button>
+        <button type="button" class="chip" data-filter="down">DOWN</button>
+        <button type="button" class="chip" data-filter="up">UP</button>
+      </div>
+    </div>
+    <div class="feed" id="feed"></div>
+    <div class="countries" id="countries"></div>
+  </aside>
+
+  <footer class="hud-bot">
+    <canvas id="spark" height="40"></canvas>
+    <div class="legend">
+      <span class="swatch up"></span> ICMP / TCP UP
+      <span class="swatch down"></span> NO ANSWER
+      <span class="swatch pending"></span> IN FLIGHT
+    </div>
+    <div id="status-line">GRID READY · PING THEN 443/80 · LOCATIONS FROM ipwho.is CACHE</div>
+  </footer>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
