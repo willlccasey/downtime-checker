@@ -2,3 +2,8 @@ __pycache__/
 *.pyc
 added-places.txt
 node_modules/
+visualizer/public/vendor/cesium/
+visualizer/data/*.json
+!visualizer/data/pack.json
+visualizer/data/hpdb/
+visualizer/data/tiles/

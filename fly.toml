@@ -1,0 +1,35 @@
+# Public Cesium globe for downtime-checker.
+# Deploy from the repo root: fly deploy --ha=false
+# App lives on the personal Fly org of lquessenberry@gmail.com.
+
+app = 'downtime-globe'
+primary_region = 'dfw'
+
+[build]
+  dockerfile = 'Dockerfile'
+
+[env]
+  HOST = '0.0.0.0'
+  PORT = '8080'
+  PUBLIC_HOME = 'cesium'
+  SCAN_COOLDOWN_MS = '15000'
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+
+  [[http_service.checks]]
+    grace_period = '20s'
+    interval = '30s'
+    timeout = '5s'
+    method = 'GET'
+    path = '/healthz'
+
+[[vm]]
+  memory = '512mb'
+  cpu_kind = 'shared'
+  cpus = 1

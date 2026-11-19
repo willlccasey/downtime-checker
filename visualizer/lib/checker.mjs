@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { CAPITALS, ROOT } from "./catalogs.mjs";
+import { offline } from "./datapack.mjs";
 
 const CACHE_PATH = path.join(ROOT, "locations.json");
 const PING_WAIT = 2;
@@ -132,6 +133,7 @@ function formatLocation(data) {
 }
 
 async function lookupIp(ip) {
+  if (offline()) return null;
   try {
     const res = await fetch(`https://ipwho.is/${ip}`, {
       headers: { "User-Agent": "downtime-visualizer" },

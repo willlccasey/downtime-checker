@@ -1,0 +1,5 @@
+{
+  "name": "downtime-data",
+  "version": 1,
+  "note": "Run `node lib/datapack.mjs snapshot` while online, then `OFFLINE=1 node server.mjs` on a local client."
+}

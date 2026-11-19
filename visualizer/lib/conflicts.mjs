@@ -1,12 +1,9 @@
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
+import { loadDataset } from "./datapack.mjs";
 
 // Council on Foreign Relations Global Conflict Tracker. The map page embeds
 // each conflict with a latitude and longitude. Cached on this machine only.
 const SOURCE_PAGE = "https://www.cfr.org/global-conflict-tracker";
 const MAX_AGE_MS = 6 * 60 * 60 * 1000;
-const CACHE = path.join(os.homedir(), ".cache/downtime/cfr.json");
 const UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36";
 const STATUS_RANK = { Worsening: 0, Developing: 1, Unchanging: 2, Improving: 3 };
 
@@ -139,21 +136,6 @@ export function conflictsFromHtml(html) {
   return conflicts;
 }
 
-function readCache() {
-  try {
-    const data = JSON.parse(fs.readFileSync(CACHE, "utf8"));
-    if (!data || !Array.isArray(data.conflicts) || !data.conflicts.length) return null;
-    return data;
-  } catch {
-    return null;
-  }
-}
-
-function writeCache(payload) {
-  fs.mkdirSync(path.dirname(CACHE), { recursive: true });
-  fs.writeFileSync(CACHE, JSON.stringify(payload));
-}
-
 function payload(conflicts, fetchedAt, stale) {
   return {
     source: SOURCE_PAGE,
@@ -190,15 +172,5 @@ export function conflictCatalog() {
 }
 
 async function load() {
-  const cached = readCache();
-  const age = cached ? Date.now() - Number(cached.fetchedAt) : Infinity;
-  if (cached && age < MAX_AGE_MS) return { ...cached, stale: false };
-  try {
-    const body = await fetchConflicts();
-    writeCache(body);
-    return body;
-  } catch (err) {
-    if (cached) return { ...cached, stale: true, error: err.message || String(err) };
-    throw err;
-  }
+  return loadDataset("conflicts", { maxAgeMs: MAX_AGE_MS, fetchFresh: fetchConflicts });
 }

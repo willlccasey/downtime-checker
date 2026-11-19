@@ -17,7 +17,7 @@
       <div class="pulse-dot" id="link-dot"></div>
       <div>
         <h1>DOWNTIME</h1>
-        <p class="tag">CESIUM GLOBE // SDR · GPS · CONFLICTS</p>
+        <p class="tag">INTERNET GRID · SDR · RADIO · STREAMS · GPS · ADS-B · WAR</p>
       </div>
     </div>
     <div class="meters">
@@ -26,27 +26,60 @@
       <div class="meter down"><span>OFFLINE</span><strong id="stat-down">0</strong></div>
       <div class="meter"><span>UPTIME</span><strong id="stat-pct">—</strong></div>
     </div>
-    <div class="clock" id="clock">00:00:00Z</div>
+    <div class="clock-col">
+      <div class="clock" id="clock">00:00:00Z</div>
+      <div class="data-mode" id="data-mode" hidden>DATA</div>
+    </div>
   </header>
 
   <aside class="rail">
-    <div class="rail-head">
-      <span>MISSIONS</span>
-      <button type="button" id="btn-stop" hidden>ABORT</button>
+    <section class="grid-status" id="grid-status">
+      <div class="rail-head">
+        <span>INTERNET GRID STATUS</span>
+        <button type="button" id="btn-stop" hidden>ABORT</button>
+      </div>
+      <p class="grid-copy">Check whether public websites answer. Pick a web grid, then run it.</p>
+      <label class="grid-pick">
+        <span>WEB GRID</span>
+        <select id="grid-search"></select>
+      </label>
+      <label class="grid-pick">
+        <span>COUNTRY</span>
+        <select id="country"></select>
+      </label>
+      <div class="grid-actions">
+        <button type="button" id="btn-grid-run">CHECK GRID</button>
+        <button type="button" id="btn-country">CHECK COUNTRY</button>
+      </div>
+    </section>
+    <nav id="searches" class="searches" hidden></nav>
+    <div class="live-overlays">
+      <div class="rail-head"><span>LAYERS</span></div>
+      <button type="button" class="layer on" data-layer-toggle="sdr" aria-pressed="true"><span class="layer-name"><span class="swatch sdr"></span> SDR</span><span class="layer-meta"><em data-count="sdr">—</em><span class="switch" aria-hidden="true"></span></span></button>
+      <button type="button" class="layer on" data-layer-toggle="radio" aria-pressed="true"><span class="layer-name"><span class="swatch radio"></span> RADIO</span><span class="layer-meta"><em data-count="radio">—</em><span class="switch" aria-hidden="true"></span></span></button>
+      <button type="button" class="layer on" data-layer-toggle="stream" aria-pressed="true"><span class="layer-name"><span class="swatch stream"></span> STREAM</span><span class="layer-meta"><em data-count="stream">—</em><span class="switch" aria-hidden="true"></span></span></button>
+      <button type="button" class="layer on" data-layer-toggle="gps" aria-pressed="true"><span class="layer-name"><span class="swatch jam"></span> GPS</span><span class="layer-meta"><em data-count="gps">—</em><span class="switch" aria-hidden="true"></span></span></button>
+      <button type="button" class="layer on" data-layer-toggle="jamming" aria-pressed="true"><span class="layer-name"><span class="swatch jam"></span> JAM</span><span class="layer-meta"><em data-count="jamming">—</em><span class="switch" aria-hidden="true"></span></span></button>
+      <button type="button" class="layer on" data-layer-toggle="aircraft" aria-pressed="true"><span class="layer-name"><span class="swatch air"></span> AIR</span><span class="layer-meta"><em data-count="aircraft">—</em><span class="switch" aria-hidden="true"></span></span></button>
+      <button type="button" class="layer on" data-layer-toggle="ships" aria-pressed="true"><span class="layer-name"><span class="swatch ais"></span> AIS</span><span class="layer-meta"><em data-count="ships">—</em><span class="switch" aria-hidden="true"></span></span></button>
+      <button type="button" class="layer on" data-layer-toggle="conflicts" aria-pressed="true"><span class="layer-name"><span class="swatch war"></span> WAR</span><span class="layer-meta"><em data-count="conflicts">—</em><span class="switch" aria-hidden="true"></span></span></button>
+      <button type="button" class="layer on" data-layer-toggle="scan" aria-pressed="true"><span class="layer-name"><span class="swatch pending"></span> SCAN</span><span class="layer-meta"><em data-count="scan">—</em><span class="switch" aria-hidden="true"></span></span></button>
     </div>
-    <nav id="searches" class="searches"></nav>
-    <label class="country-pick">
-      <span>COUNTRY TARGET</span>
-      <select id="country"></select>
-      <button type="button" id="btn-country">LOCK &amp; SCAN</button>
-    </label>
   </aside>
 
   <main class="stage">
     <div id="cesium"></div>
     <div class="stage-meta">
       <div id="heading">AWAITING TASKING</div>
-      <div id="hint">DRAG ORBIT · SCROLL ZOOMS · TOGGLE A LAYER · CLICK A PIN TO OPEN IT</div>
+      <div id="hint">DRAG ORBIT · SCROLL ZOOMS · RIGHT-DRAG TILTS TERRAIN · TOGGLE A LAYER</div>
+    </div>
+    <div class="basemap-bar" id="basemap-bar">
+      <button type="button" class="chip on" data-basemap="sat">SAT</button>
+      <button type="button" class="chip" data-basemap="live">LIVE</button>
+      <button type="button" class="chip" data-basemap="night">NIGHT</button>
+      <button type="button" class="chip" data-basemap="streets">STREETS</button>
+      <button type="button" class="chip" data-labels>LABELS</button>
+      <button type="button" class="chip on" data-terrain>3D</button>
     </div>
     <div class="selected" id="selected" hidden></div>
     <div class="progress-wrap"><div class="progress" id="progress"></div></div>
@@ -57,8 +90,10 @@
       <span id="feed-title">WEBSDR</span>
       <div class="toggles" id="feed-mode">
         <button type="button" class="chip on" data-feed="sdr">SDR</button>
+        <button type="button" class="chip" data-feed="radio">RADIO</button>
+        <button type="button" class="chip" data-feed="stream">STREAM</button>
         <button type="button" class="chip" data-feed="gps">GPS</button>
-        <button type="button" class="chip" data-feed="conflicts">CONFLICTS</button>
+        <button type="button" class="chip" data-feed="conflicts">WAR</button>
         <button type="button" class="chip" data-feed="returns">SCAN</button>
       </div>
     </div>
@@ -67,6 +102,18 @@
         <input id="sdr-filter" type="search" placeholder="Name, grid, or band" autocomplete="off" />
       </label>
       <div class="feed" id="sdr-list"></div>
+    </div>
+    <div id="radio-pane" hidden>
+      <label class="sdr-filter-wrap">
+        <input id="radio-filter" type="search" placeholder="Agency, site, or MHz" autocomplete="off" />
+      </label>
+      <div class="feed" id="radio-list"></div>
+    </div>
+    <div id="stream-pane" hidden>
+      <label class="sdr-filter-wrap">
+        <input id="stream-filter" type="search" placeholder="Feed, county, or source" autocomplete="off" />
+      </label>
+      <div class="feed" id="stream-list"></div>
     </div>
     <div id="gps-pane" hidden>
       <p class="layer-credit" id="gps-credit"></p>
@@ -97,12 +144,15 @@
 
   <footer class="hud-bot">
     <div class="legend">
-      <button type="button" class="layer on" data-layer-toggle="sdr" aria-pressed="true"><img src="/icons/ham-radio.png" alt="" /> SDR</button>
-      <button type="button" class="layer on" data-layer-toggle="gps" aria-pressed="true"><img src="/icons/satellite.png" alt="" /> GPS</button>
-      <button type="button" class="layer on" data-layer-toggle="conflicts" aria-pressed="true"><img src="/icons/bomb.png" alt="" /> CONFLICTS</button>
-      <span class="swatch up"></span> UP
-      <span class="swatch down"></span> DOWN
-      <span class="swatch pending"></span> IN FLIGHT
+      <button type="button" class="layer on" data-layer-toggle="sdr" aria-pressed="true"><img src="/icons/ham-radio.png" alt="" /> SDR <span class="switch" aria-hidden="true"></span></button>
+      <button type="button" class="layer on" data-layer-toggle="radio" aria-pressed="true"><span class="swatch radio"></span> RADIO <span class="switch" aria-hidden="true"></span></button>
+      <button type="button" class="layer on" data-layer-toggle="stream" aria-pressed="true"><span class="swatch stream"></span> STREAM <span class="switch" aria-hidden="true"></span></button>
+      <button type="button" class="layer on" data-layer-toggle="gps" aria-pressed="true"><img src="/icons/satellite.png" alt="" /> GPS <span class="switch" aria-hidden="true"></span></button>
+      <button type="button" class="layer on" data-layer-toggle="jamming" aria-pressed="true"><span class="swatch jam"></span> JAM <span class="switch" aria-hidden="true"></span></button>
+      <button type="button" class="layer on" data-layer-toggle="aircraft" aria-pressed="true"><span class="swatch air"></span> AIR <span class="switch" aria-hidden="true"></span></button>
+      <button type="button" class="layer on" data-layer-toggle="ships" aria-pressed="true"><span class="swatch ais"></span> AIS <span class="switch" aria-hidden="true"></span></button>
+      <button type="button" class="layer on" data-layer-toggle="conflicts" aria-pressed="true"><img src="/icons/bomb.png" alt="" /> WAR <span class="switch" aria-hidden="true"></span></button>
+      <button type="button" class="layer on" data-layer-toggle="scan" aria-pressed="true"><span class="swatch pending"></span> SCAN <span class="switch" aria-hidden="true"></span></button>
     </div>
     <div id="status-line">CESIUM READY · LOADING SDR, GPS JAM, AND CONFLICTS</div>
   </footer>

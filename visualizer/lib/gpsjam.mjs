@@ -1,7 +1,5 @@
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import { cellToLatLng } from "./vendor/h3-js.es.js";
+import { loadDataset } from "./datapack.mjs";
 
 // Daily H3 resolution-4 aircraft navigation-accuracy grid from gpsjam.org.
 // Local cache only. John Wiseman publishes it; the aircraft reports come from
@@ -9,7 +7,6 @@ import { cellToLatLng } from "./vendor/h3-js.es.js";
 const DATA_URL = "https://gpsjam.org/data";
 const SOURCE_PAGE = "https://gpsjam.org/";
 const MAX_AGE_MS = 6 * 60 * 60 * 1000;
-const CACHE = path.join(os.homedir(), ".cache/downtime/gpsjam.json");
 const LINK_KM = 120;
 const UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36";
 
@@ -231,21 +228,6 @@ async function fetchText(url) {
   return response.text();
 }
 
-function readCache() {
-  try {
-    const data = JSON.parse(fs.readFileSync(CACHE, "utf8"));
-    if (!data || !Array.isArray(data.zones)) return null;
-    return data;
-  } catch {
-    return null;
-  }
-}
-
-function writeCache(payload) {
-  fs.mkdirSync(path.dirname(CACHE), { recursive: true });
-  fs.writeFileSync(CACHE, JSON.stringify(payload));
-}
-
 function payload(zones, date, incomplete, fetchedAt, stale) {
   return {
     source: SOURCE_PAGE,
@@ -281,15 +263,5 @@ export function gpsjamCatalog() {
 }
 
 async function load() {
-  const cached = readCache();
-  const age = cached ? Date.now() - Number(cached.fetchedAt) : Infinity;
-  if (cached && age < MAX_AGE_MS) return { ...cached, stale: false };
-  try {
-    const body = await fetchZones();
-    writeCache(body);
-    return body;
-  } catch (err) {
-    if (cached) return { ...cached, stale: true, error: err.message || String(err) };
-    throw err;
-  }
+  return loadDataset("gpsjam", { maxAgeMs: MAX_AGE_MS, fetchFresh: fetchZones });
 }

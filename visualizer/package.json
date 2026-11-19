@@ -4,6 +4,9 @@
   "type": "module",
   "description": "Live globe visualizer for the downtime checker catalogs",
   "scripts": {
-    "start": "node server.mjs"
+    "start": "node server.mjs",
+    "data": "node lib/datapack.mjs snapshot",
+    "data:status": "node lib/datapack.mjs status",
+    "vendor:cesium": "node lib/datapack.mjs vendor-cesium"
   }
 }

@@ -1,0 +1,12 @@
+.git
+.github
+locations.json
+node_modules
+**/node_modules
+__pycache__
+*.pyc
+added-places.txt
+*.tar.gz
+.DS_Store
+.env
+.env.*

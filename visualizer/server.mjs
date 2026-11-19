@@ -4,6 +4,9 @@ import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { catalog, placesFor, SEARCHES } from "./lib/catalogs.mjs";
+import { snapshotFeeds, startFeeds } from "./lib/feeds.mjs";
+import { loadRadioOverlay } from "./lib/hpdb.mjs";
+import { loadStreamOverlay } from "./lib/streams.mjs";
 import { websdrCatalog } from "./lib/websdr.mjs";
 import { gpsjamCatalog } from "./lib/gpsjam.mjs";
 import { conflictCatalog } from "./lib/conflicts.mjs";
@@ -15,11 +18,22 @@ import {
   mapPool,
   saveCache,
 } from "./lib/checker.mjs";
+import { cesiumIsLocal, offline, readyStatus, tileCachePath } from "./lib/datapack.mjs";
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(DIR, "public");
 const PORT = Number(process.env.PORT) || 4173;
+const HOST = process.env.HOST || (process.env.FLY_APP_NAME ? "0.0.0.0" : "127.0.0.1");
+const PUBLIC_HOME = process.env.PUBLIC_HOME || (process.env.FLY_APP_NAME ? "cesium" : "");
+const SCAN_COOLDOWN_MS = Number(process.env.SCAN_COOLDOWN_MS || (process.env.FLY_APP_NAME ? 15000 : 0));
 const WORKERS = 24;
+const EOX_TILE = /^\/tiles\/eox\/(\d+)\/(\d+)\/(\d+)\.jpg$/;
+const EOX_MAX_Z = 14;
+const EOX_CACHE_MAX = 192;
+const EOX_UPSTREAM =
+  "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2025_3857/default/GoogleMapsCompatible";
+const eoxCache = new Map();
+let lastScanAt = 0;
 const MIME = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -44,6 +58,76 @@ const state = {
   finishedAt: 0,
   results: [],
 };
+
+async function proxyEoxTile(z, y, x, res) {
+  const zi = Number(z);
+  const yi = Number(y);
+  const xi = Number(x);
+  const span = 2 ** zi;
+  if (
+    !Number.isInteger(zi) ||
+    zi < 0 ||
+    zi > EOX_MAX_Z ||
+    !Number.isInteger(yi) ||
+    !Number.isInteger(xi) ||
+    yi < 0 ||
+    xi < 0 ||
+    yi >= span ||
+    xi >= span
+  ) {
+    send(res, 400, "bad tile", "text/plain");
+    return;
+  }
+  const key = `${zi}/${yi}/${xi}`;
+  let buf = eoxCache.get(key);
+  const disk = tileCachePath("eox", zi, yi, xi, "jpg");
+  if (!buf && fs.existsSync(disk)) {
+    try {
+      buf = fs.readFileSync(disk);
+      eoxCache.set(key, buf);
+    } catch {
+      buf = null;
+    }
+  }
+  if (!buf && offline()) {
+    send(res, 404, "tile missing", "text/plain");
+    return;
+  }
+  if (!buf) {
+    const url = `${EOX_UPSTREAM}/${zi}/${yi}/${xi}.jpg`;
+    try {
+      const upstream = await fetch(url, {
+        signal: AbortSignal.timeout(12000),
+        headers: {
+          Accept: "image/jpeg,image/*;q=0.8",
+          "User-Agent": "downtime-globe/1",
+        },
+      });
+      if (!upstream.ok) {
+        send(res, upstream.status === 404 ? 404 : 502, "tile missing", "text/plain");
+        return;
+      }
+      buf = Buffer.from(await upstream.arrayBuffer());
+      if (eoxCache.size >= EOX_CACHE_MAX) eoxCache.delete(eoxCache.keys().next().value);
+      eoxCache.set(key, buf);
+      try {
+        fs.mkdirSync(path.dirname(disk), { recursive: true });
+        fs.writeFileSync(disk, buf);
+      } catch {
+        /* disk cache is optional */
+      }
+    } catch {
+      send(res, 502, "tile error", "text/plain");
+      return;
+    }
+  }
+  res.writeHead(200, {
+    "Content-Type": "image/jpeg",
+    "Cache-Control": "public, max-age=86400, immutable",
+    "Access-Control-Allow-Origin": "*",
+  });
+  res.end(buf);
+}
 
 function send(res, status, body, type = "application/json; charset=utf-8") {
   const data = typeof body === "string" || Buffer.isBuffer(body) ? body : JSON.stringify(body);
@@ -174,6 +258,7 @@ async function runScan({ id, country }) {
 
 function serveStatic(req, res) {
   let urlPath = decodeURIComponent(new URL(req.url, "http://localhost").pathname);
+  if (urlPath === "/" && PUBLIC_HOME === "cesium") urlPath = "/cesium.html";
   if (urlPath === "/") urlPath = "/index.html";
   const file = path.normalize(path.join(PUBLIC, urlPath));
   if (!file.startsWith(PUBLIC)) {
@@ -183,6 +268,14 @@ function serveStatic(req, res) {
   fs.readFile(file, (err, data) => {
     if (err) {
       send(res, 404, "Not found", "text/plain");
+      return;
+    }
+    if (file.endsWith("cesium.html") && cesiumIsLocal()) {
+      const html = data.toString("utf8").replaceAll(
+        "https://cesium.com/downloads/cesiumjs/releases/1.128/Build/Cesium/",
+        "/vendor/cesium/",
+      );
+      send(res, 200, html, "text/html; charset=utf-8");
       return;
     }
     send(res, 200, data, MIME[path.extname(file)] || "application/octet-stream");
@@ -209,14 +302,61 @@ const server = http.createServer(async (req, res) => {
   }
 
   try {
+    if (req.method === "GET" && url.pathname === "/healthz") {
+      send(res, 200, { ok: true, home: PUBLIC_HOME || "grid" });
+      return;
+    }
+    if (req.method === "GET" && url.pathname === "/api/ready") {
+      send(res, 200, readyStatus());
+      return;
+    }
+    const eoxTile = url.pathname.match(EOX_TILE);
+    if (req.method === "GET" && eoxTile) {
+      await proxyEoxTile(eoxTile[1], eoxTile[2], eoxTile[3], res);
+      return;
+    }
     if (req.method === "GET" && url.pathname === "/api/catalog") {
       const { searches, countries } = catalog();
       send(res, 200, { searches, countries });
       return;
     }
+    if (req.method === "GET" && url.pathname === "/api/feeds") {
+      send(res, 200, snapshotFeeds());
+      return;
+    }
     if (req.method === "GET" && url.pathname === "/api/websdr") {
       const body = await websdrCatalog();
       send(res, 200, body);
+      return;
+    }
+    if (req.method === "GET" && url.pathname === "/api/radio") {
+      try {
+        const body = await loadRadioOverlay();
+        send(res, 200, {
+          source: body.source,
+          updated: body.updated,
+          count: body.count,
+          points: body.points,
+          error: body.error || null,
+        });
+      } catch (err) {
+        send(res, 200, { source: null, count: 0, points: [], error: err.message || String(err) });
+      }
+      return;
+    }
+    if (req.method === "GET" && url.pathname === "/api/streams") {
+      const body = await loadStreamOverlay();
+      send(res, 200, {
+        source: body.source,
+        credit: body.credit,
+        count: body.count,
+        scraped: body.scraped,
+        unmatched: body.unmatched,
+        fetchedAt: body.fetchedAt,
+        stale: body.stale,
+        errors: body.errors,
+        points: body.points,
+      });
       return;
     }
     if (req.method === "GET" && url.pathname === "/api/gpsjam") {
@@ -250,6 +390,10 @@ const server = http.createServer(async (req, res) => {
         send(res, 409, { error: "A scan is already running." });
         return;
       }
+      if (SCAN_COOLDOWN_MS && Date.now() - lastScanAt < SCAN_COOLDOWN_MS) {
+        send(res, 429, { error: "Scan cooldown. Try again in a few seconds." });
+        return;
+      }
       const body = await readJson(req);
       const id = String(body.id || "").trim();
       const country = String(body.country || "").trim();
@@ -258,6 +402,7 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       send(res, 202, { ok: true });
+      lastScanAt = Date.now();
       runScan({ id, country }).catch((err) => {
         state.running = false;
         emit({ type: "error", message: err.message || String(err) });
@@ -288,10 +433,16 @@ const server = http.createServer(async (req, res) => {
 });
 
 catalog();
-server.listen(PORT, "127.0.0.1", () => {
+startFeeds();
+loadRadioOverlay().catch((err) => console.error("radio overlay:", err.message || err));
+loadStreamOverlay().catch((err) => console.error("stream overlay:", err.message || err));
+server.listen(PORT, HOST, () => {
   const { searches } = catalog();
   const weather = searches.find((s) => s.id === "weather");
-  console.log(`Downtime visualizer  http://127.0.0.1:${PORT}`);
+  const local = HOST === "0.0.0.0" ? "127.0.0.1" : HOST;
+  console.log(`Downtime visualizer  http://${local}:${PORT}`);
+  if (PUBLIC_HOME === "cesium") console.log(`Public home  http://${local}:${PORT}/cesium.html`);
+  if (offline()) console.log("Offline data pack  " + readyStatus().pack);
   console.log(`${searches.reduce((n, s) => n + (s.group === "global" ? s.count : 0), 0)} catalog rows across searches`);
   if (weather) console.log(`Weather search: ${weather.count} places`);
 });

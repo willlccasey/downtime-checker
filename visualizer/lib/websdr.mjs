@@ -1,12 +1,9 @@
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
+import { loadDataset } from "./datapack.mjs";
 
 // Public directory the websdr.org map loads. Cached locally for this machine.
 const LIST_URL = "http://websdr.ewi.utwente.nl/~~websdrlistk?v=1&fmt=2&chseq=0";
 const SOURCE_PAGE = "http://websdr.org/";
 const MAX_AGE_MS = 6 * 60 * 60 * 1000;
-const CACHE = path.join(os.homedir(), ".cache/downtime/websdr.json");
 
 function decodeHtml(text) {
   return String(text ?? "")
@@ -74,21 +71,6 @@ function parseBody(text) {
   return normalizeWebsdr(JSON.parse(text.slice(start)));
 }
 
-function readCache() {
-  try {
-    const data = JSON.parse(fs.readFileSync(CACHE, "utf8"));
-    if (!data || !Array.isArray(data.stations) || !data.stations.length) return null;
-    return data;
-  } catch {
-    return null;
-  }
-}
-
-function writeCache(payload) {
-  fs.mkdirSync(path.dirname(CACHE), { recursive: true });
-  fs.writeFileSync(CACHE, JSON.stringify(payload));
-}
-
 async function fetchStations() {
   const response = await fetch(LIST_URL, {
     signal: AbortSignal.timeout(20000),
@@ -126,16 +108,8 @@ export function websdrCatalog() {
 }
 
 async function load() {
-  const cached = readCache();
-  const age = cached ? Date.now() - Number(cached.fetchedAt) : Infinity;
-  if (cached && age < MAX_AGE_MS) return { ...cached, stale: false };
-  try {
-    const stations = await fetchStations();
-    const body = payload(stations, Date.now(), false);
-    writeCache(body);
-    return body;
-  } catch (err) {
-    if (cached) return { ...cached, stale: true, error: err.message || String(err) };
-    throw err;
-  }
+  return loadDataset("websdr", {
+    maxAgeMs: MAX_AGE_MS,
+    fetchFresh: async () => payload(await fetchStations(), Date.now(), false),
+  });
 }
